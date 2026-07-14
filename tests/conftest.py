@@ -82,6 +82,7 @@ def test_user_data_fixture() -> dict:
         },
         "phoneNumber": "+447700900077",
         "email": "john.doe@example.com",
+        "password": "SecurePassword123!",
     }
 
 

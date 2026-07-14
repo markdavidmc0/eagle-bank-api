@@ -97,7 +97,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
       security:
         - bearerAuth: []
       responses:
@@ -149,7 +149,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
       security:
         - bearerAuth: []
       requestBody:
@@ -208,7 +208,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
       security:
         - bearerAuth: []
       responses:
@@ -258,7 +258,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
       requestBody:
         description: Create a new transaction
         content:
@@ -323,7 +323,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
       security:
         - bearerAuth: []
       responses:
@@ -376,7 +376,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: ^01\d{6}$
+            pattern: ^01[0-9]{6}$
         - name: transactionId
           in: path
           description: ID of the transaction
@@ -445,12 +445,56 @@ paths:
                 $ref: '#/components/schemas/UserResponse'
         '400':
           description: Invalid details supplied
+        '409':
+          description: Email address is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         '500':
           description: An unexpected error occurred
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/auth/login:
+    post:
+      tags:
+        - auth
+      description: Authenticate a user and return a JWT bearer access token
+      operationId: loginUser
+      requestBody:
+        description: User credentials for login
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: User successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid details supplied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestErrorResponse'
+        '401':
+          description: Access token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: An unexpected error occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/users/{userId}:
     get:
       tags:
@@ -553,6 +597,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         '404':
           description: User was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        '409':
+          description: Email address is already registered
           content:
             application/json:
               schema:
@@ -669,7 +719,7 @@ components:
       properties:
         accountNumber:
           type: string
-          format: ^01\d{6}$
+          pattern: '^01[0-9]{6}$'
           examples:
             - "01234567"
             - "01765432"
@@ -728,7 +778,9 @@ components:
             - "deposit"
             - "withdrawal"
         reference:
-          type: string
+          type:
+            - string
+            - "null"
     ListTransactionsResponse:
       type: object
       required:
@@ -767,10 +819,12 @@ components:
             - "deposit"
             - "withdrawal"
         reference:
-          type: string
+          type:
+            - string
+            - "null"
         userId:
           type: string
-          format: ^usr-[A-Za-z0-9]+$
+          pattern: '^usr-[A-Za-z0-9]+$'
           examples: 
             - usr-abc123
         createdTimestamp:
@@ -783,6 +837,7 @@ components:
         - address
         - phoneNumber
         - email
+        - password
       properties:
         name:
           type: string
@@ -799,9 +854,13 @@ components:
             line1:
               type: string
             line2:
-              type: string
+              type:
+                - string
+                - "null"
             line3:
-              type: string
+              type:
+                - string
+                - "null"
             town:
               type: string
             county:
@@ -810,10 +869,13 @@ components:
               type: string
         phoneNumber:
           type: string
-          format: ^\+[1-9]\d{1,14}$
+          pattern: '^\+[1-9][0-9]{1,14}$'
         email:
           type: string
           format: email    
+        password:
+          type: string
+          minLength: 8
     UpdateUserRequest:
       type: object
       properties:
@@ -832,9 +894,13 @@ components:
             line1:
               type: string
             line2:
-              type: string
+              type:
+                - string
+                - "null"
             line3:
-              type: string
+              type:
+                - string
+                - "null"
             town:
               type: string
             county:
@@ -843,7 +909,7 @@ components:
               type: string
         phoneNumber:
           type: string
-          format: ^\+[1-9]\d{1,14}$
+          pattern: '^\+[1-9][0-9]{1,14}$'
         email:
           type: string
           format: email
@@ -860,7 +926,7 @@ components:
       properties:
         id:
           type: string
-          format: ^usr-[A-Za-z0-9]+$
+          pattern: '^usr-[A-Za-z0-9]+$'
         name:
           type: string
           examples:
@@ -876,9 +942,13 @@ components:
             line1:
               type: string
             line2:
-              type: string
+              type:
+                - string
+                - "null"
             line3:
-              type: string
+              type:
+                - string
+                - "null"
             town:
               type: string
             county:
@@ -887,7 +957,7 @@ components:
               type: string
         phoneNumber:
           type: string
-          format: ^\+[1-9]\d{1,14}$
+          pattern: '^\+[1-9][0-9]{1,14}$'
         email:
           type: string
           format: email
@@ -927,6 +997,29 @@ components:
                 type: string
               type:
                 type: string
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    TokenResponse:
+      type: object
+      required:
+        - accessToken
+        - tokenType
+      properties:
+        accessToken:
+          type: string
+          description: Signed HS256 JWT access token
+        tokenType:
+          type: string
+          description: Type of authorization token
   securitySchemes:
     bearerAuth:
       type: http

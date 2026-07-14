@@ -6,9 +6,20 @@ with the OpenAPI specification.
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_serializer, field_validator, model_validator
+
+
+# --- Custom Types ---
+def format_datetime(dt: datetime) -> str:
+    """Format datetime as standard ISO 8601 string ending with Z."""
+    if dt.tzinfo is None:
+        return dt.isoformat() + "Z"
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+UTCDatetime = Annotated[datetime, PlainSerializer(format_datetime, return_type=str)]
 
 
 # --- Address Schemas ---
@@ -33,10 +44,11 @@ class CreateUserRequest(BaseModel):
     address: Address = Field(..., description="Postal address of the user")
     phoneNumber: str = Field(
         ...,
-        pattern=r"^\+[1-9]\d{1,14}$",
+        pattern=r"^\+[1-9][0-9]{1,14}$",
         description="E.164 formatted phone number",
     )
     email: EmailStr = Field(..., description="Email address")
+    password: str = Field(..., min_length=8, description="Password for the user account")
 
 
 class UpdateUserRequest(BaseModel):
@@ -46,7 +58,7 @@ class UpdateUserRequest(BaseModel):
     address: Address | None = Field(default=None, description="Postal address of the user")
     phoneNumber: str | None = Field(
         default=None,
-        pattern=r"^\+[1-9]\d{1,14}$",
+        pattern=r"^\+[1-9][0-9]{1,14}$",
         description="E.164 formatted phone number",
     )
     email: EmailStr | None = Field(default=None, description="Email address")
@@ -58,10 +70,10 @@ class UserResponse(BaseModel):
     id: str = Field(..., pattern=r"^usr-[A-Za-z0-9]+$")
     name: str
     address: Address
-    phoneNumber: str = Field(..., pattern=r"^\+[1-9]\d{1,14}$")
-    email: EmailStr
-    createdTimestamp: datetime
-    updatedTimestamp: datetime
+    phoneNumber: str = Field(..., pattern=r"^\+[1-9][0-9]{1,14}$")
+    email: str
+    createdTimestamp: UTCDatetime
+    updatedTimestamp: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,10 +114,22 @@ class UserResponse(BaseModel):
                 }
         return data
 
-    @field_serializer("createdTimestamp", "updatedTimestamp")
-    def serialize_datetime(self, dt: datetime, _info: Any) -> str:
-        """Format datetime as standard ISO 8601 string ending with Z."""
-        return dt.isoformat().replace("+00:00", "Z")
+
+
+
+# --- Auth Schemas ---
+class LoginRequest(BaseModel):
+    """Schema for user credentials authentication request."""
+
+    email: EmailStr = Field(..., description="The user's registered email address")
+    password: str = Field(..., description="The user's account password")
+
+
+class TokenResponse(BaseModel):
+    """Schema returning the authenticated JWT Bearer access token."""
+
+    accessToken: str = Field(..., description="The signed HS256 JWT access token")
+    tokenType: str = Field(default="bearer", description="The type of authorization token")
 
 
 # --- Bank Account Schemas ---
@@ -126,14 +150,14 @@ class UpdateBankAccountRequest(BaseModel):
 class BankAccountResponse(BaseModel):
     """Schema for returning bank account details."""
 
-    accountNumber: str = Field(..., pattern=r"^01\d{6}$")
+    accountNumber: str = Field(..., pattern=r"^01[0-9]{6}$")
     sortCode: Literal["10-10-10"] = Field(default="10-10-10")
     name: str
     accountType: Literal["personal"] = Field(default="personal")
     balance: float = Field(..., ge=0.00, le=10000.00)
     currency: Literal["GBP"] = Field(default="GBP")
-    createdTimestamp: datetime
-    updatedTimestamp: datetime
+    createdTimestamp: UTCDatetime
+    updatedTimestamp: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -143,10 +167,7 @@ class BankAccountResponse(BaseModel):
         """Round the balance to exactly two decimal places."""
         return round(value, 2)
 
-    @field_serializer("createdTimestamp", "updatedTimestamp")
-    def serialize_datetime(self, dt: datetime, _info: Any) -> str:
-        """Format datetime as standard ISO 8601 string ending with Z."""
-        return dt.isoformat().replace("+00:00", "Z")
+
 
 
 class ListBankAccountsResponse(BaseModel):
@@ -180,7 +201,7 @@ class TransactionResponse(BaseModel):
     type: Literal["deposit", "withdrawal"]
     reference: str | None = Field(default=None)
     userId: str = Field(..., pattern=r"^usr-[A-Za-z0-9]+$")
-    createdTimestamp: datetime
+    createdTimestamp: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -190,10 +211,7 @@ class TransactionResponse(BaseModel):
         """Round the transaction amount to exactly two decimal places."""
         return round(value, 2)
 
-    @field_serializer("createdTimestamp")
-    def serialize_datetime(self, dt: datetime, _info: Any) -> str:
-        """Format datetime as standard ISO 8601 string ending with Z."""
-        return dt.isoformat().replace("+00:00", "Z")
+
 
 
 class ListTransactionsResponse(BaseModel):

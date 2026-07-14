@@ -4,6 +4,8 @@ This module encapsulates all database interactions for Users, Bank Accounts,
 and Transactions, implementing business logic and authorization checks.
 """
 
+import bcrypt
+import hashlib
 import secrets
 import string
 from datetime import UTC, datetime
@@ -66,14 +68,18 @@ def create_user(db: Session, request: schemas.CreateUserRequest) -> models.User:
     # Check if email is unique
     existing_user = db.scalar(select(models.User).where(models.User.email == request.email))
     if existing_user:
-        raise BadRequestException(
-            message="Invalid details supplied",
-            field="email",
-            detail_message="Email address is already registered",
-            error_type="value_error.unique",
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email address is already registered",
         )
 
     user_id = generate_id("usr")
+    # Pre-hash password with SHA-256 to securely bypass bcrypt's 72-byte limit, then hash with bcrypt
+    pre_hashed = hashlib.sha256(request.password.encode("utf-8")).hexdigest()
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pre_hashed.encode("utf-8"), salt)
+    password_hash = hashed.decode("utf-8")
+
     db_user = models.User(
         id=user_id,
         name=request.name,
@@ -85,11 +91,34 @@ def create_user(db: Session, request: schemas.CreateUserRequest) -> models.User:
         postcode=request.address.postcode,
         phoneNumber=request.phoneNumber,
         email=request.email,
+        passwordHash=password_hash,
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> models.User | None:
+    """Authenticate a user by email and password.
+
+    Args:
+        db: Database session.
+        email: Registered email address.
+        password: Plain-text password to verify.
+
+    Returns:
+        models.User | None: The authenticated user model if successful, else None.
+    """
+    db_user = db.scalar(select(models.User).where(models.User.email == email))
+    if not db_user:
+        return None
+
+    # Verify password hash using bcrypt after pre-hashing with SHA-256
+    pre_hashed = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    if bcrypt.checkpw(pre_hashed.encode("utf-8"), db_user.passwordHash.encode("utf-8")):
+        return db_user
+    return None
 
 
 def get_user(db: Session, user_id: str) -> models.User | None:
@@ -127,11 +156,9 @@ def update_user(db: Session, user_id: str, request: schemas.UpdateUserRequest) -
     if request.email and request.email != db_user.email:
         conflict = db.scalar(select(models.User).where(models.User.email == request.email))
         if conflict:
-            raise BadRequestException(
-                message="Invalid details supplied",
-                field="email",
-                detail_message="Email address is already registered",
-                error_type="value_error.unique",
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email address is already registered",
             )
         db_user.email = request.email
 

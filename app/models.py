@@ -43,6 +43,7 @@ class User(Base):
     postcode = Column(String, nullable=False)
     phoneNumber = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
+    passwordHash = Column(String, nullable=False)
     createdTimestamp = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updatedTimestamp = Column(
         DateTime,

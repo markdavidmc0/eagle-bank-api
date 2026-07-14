@@ -37,12 +37,10 @@ def test_create_user_duplicate_email(client: TestClient, created_user: dict, tes
     Then: The request fails with 400 Bad Request and details.
     """
     response = client.post("/v1/users", json=test_user_data)
-    assert response.status_code == 400
+    assert response.status_code == 409
     data = response.json()
     assert "message" in data
-    assert "details" in data
-    assert len(data["details"]) == 1
-    assert data["details"][0]["field"] == "email"
+    assert data["message"] == "Email address is already registered"
 
 
 def test_create_user_invalid_phone(client: TestClient, test_user_data: dict) -> None:
@@ -145,3 +143,63 @@ def test_delete_user_success(client: TestClient, created_user: dict, auth_header
     # Verify the user no longer exists (returns 404)
     get_response = client.get(f"/v1/users/{user_id}", headers=auth_headers)
     assert get_response.status_code == 404
+
+
+def test_login_success(client: TestClient, test_user_data: dict) -> None:
+    """Test authenticating a user with valid credentials successfully.
+
+    Given: A registered user in the database.
+    When: A POST request is sent to /v1/auth/login with correct email and password.
+    Then: The server returns 200 OK and a signed JWT bearer token.
+    """
+    # 1. Register the user
+    reg_response = client.post("/v1/users", json=test_user_data)
+    assert reg_response.status_code == 201
+
+    # 2. Authenticate
+    login_payload = {
+        "email": test_user_data["email"],
+        "password": test_user_data["password"],
+    }
+    response = client.post("/v1/auth/login", json=login_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "accessToken" in data
+    assert data["tokenType"] == "bearer"
+
+
+def test_login_invalid_password(client: TestClient, test_user_data: dict) -> None:
+    """Test authentication fails when the wrong password is provided.
+
+    Given: A registered user in the database.
+    When: A POST request is sent to /v1/auth/login with correct email but wrong password.
+    Then: The request fails with 401 Unauthorized.
+    """
+    # 1. Register the user
+    reg_response = client.post("/v1/users", json=test_user_data)
+    assert reg_response.status_code == 201
+
+    # 2. Attempt login with incorrect password
+    login_payload = {
+        "email": test_user_data["email"],
+        "password": "WrongPassword123!",
+    }
+    response = client.post("/v1/auth/login", json=login_payload)
+    assert response.status_code == 401
+    assert response.json()["message"] == "Access token is missing or invalid"
+
+
+def test_login_nonexistent_email(client: TestClient) -> None:
+    """Test authentication fails when email address is not registered.
+
+    Given: A non-registered email.
+    When: A POST request is sent to /v1/auth/login.
+    Then: The request fails with 401 Unauthorized.
+    """
+    login_payload = {
+        "email": "not.registered@example.com",
+        "password": "AnyPassword123!",
+    }
+    response = client.post("/v1/auth/login", json=login_payload)
+    assert response.status_code == 401
+    assert response.json()["message"] == "Access token is missing or invalid"

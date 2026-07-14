@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import models
 from app.database import engine
 from app.exceptions import BadRequestException
-from app.routers import accounts, users
+from app.routers import accounts, auth, users
 
 # Initialize database tables on startup (SQLite)
 models.Base.metadata.create_all(bind=engine)
@@ -25,6 +25,7 @@ app = FastAPI(
 )
 
 # Register routers
+app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(accounts.router)
 
@@ -80,9 +81,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Format standard HTTPExceptions to return {"message": message} per OpenAPI."""
+    headers = getattr(exc, "headers", None)
+    if exc.status_code == status.HTTP_400_BAD_REQUEST:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": exc.detail,
+                "details": [
+                    {
+                        "field": "body",
+                        "message": exc.detail,
+                        "type": "value_error",
+                    }
+                ],
+            },
+            headers=headers,
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={"message": exc.detail},
+        headers=headers,
     )
 
 

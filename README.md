@@ -11,11 +11,12 @@ A highly secure, robust, and spec-compliant FastAPI REST API designed for **Eagl
 
 ## ✨ Features
 
-- **Robust User Management**: Detailed user profile registration, secure updates, lookups, and deletion protections (e.g., preventing deletion when linked accounts are active). See [app/crud.py:L175-181](app/crud.py#L175-181).
-- **Secure Ledger Transactions**: Concurrency-safe deposit and withdrawal endpoints backed by pessimistic row locking (`with_for_update`) to prevent race conditions on account balances. See [app/crud.py:L335-338](app/crud.py#L335-338).
-- **Strict Spec-Compliant Validation**: Custom Pydantic v2 schemas and validators rounding monetary attributes automatically, formatting nested structures, and standardizing ISO-8601 UTC timestamps. See [app/schemas.py:L68-103 (Address packaging)](app/schemas.py#L68-103) and [app/schemas.py:L105-108 (UTC formatting)](app/schemas.py#L105-108).
-- **Dynamic 400 Error Formatting**: Intercepts structural failures and returns tailored messages (`"Invalid details supplied"` for creations, `"The request didn't supply all the necessary data"` for updates/queries). See [app/main.py:L51-78](app/main.py#L51-78).
-- **Stateless Bearer JWT Authentication**: Secures sensitive endpoints with HS256-signed JSON Web Tokens. See [app/auth.py:L69-84](app/auth.py#L69-84).
+- **Robust User Management**: Detailed user profile registration, secure updates, lookups, and deletion protections (e.g., preventing deletion when linked accounts are active).
+- **Secure Ledger Transactions**: Concurrency-safe deposit and withdrawal endpoints backed by pessimistic row locking (`with_for_update`) to prevent race conditions on account balances.
+- **Bcrypt Password Hashing**: Ensures industry-standard credential security by salting and hashing user passwords using bcrypt before persisting them to the database.
+- **Stateless Bearer JWT Authentication**: Secures sensitive endpoints with HS256-signed JSON Web Tokens.
+- **Strict Spec-Compliant Validation**: Custom Pydantic v2 schemas and validators rounding monetary attributes automatically, formatting nested structures, and standardizing ISO-8601 UTC timestamps.
+- **Dynamic 400 Error Formatting**: Intercepts structural failures and returns tailored messages (`"Invalid details supplied"` for creations, `"The request didn't supply all the necessary data"` for updates/queries).
 
 ---
 
@@ -56,13 +57,18 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing & Verification
 
-The testing suite utilizes **Pytest** with an isolated in-memory SQLite backend.
+The testing suite utilizes **Pytest** with an isolated, in-memory SQLite database for unit tests, combined with **Schemathesis** for automated, spec-compliant API contract testing.
 
-Run the test suite with coverage parameters:
+### Run the Complete Test Suite
 ```bash
 uv run pytest
+```
+
+### Run API Contract Tests Only
+```bash
+uv run pytest tests/test_api.py
 ```
 
 ---
@@ -86,8 +92,13 @@ uv run ruff format .
 ## 🔒 Security & Concurrency Design
 
 ### Stateless Bearer JWT Flow
-All sensitive endpoints require a standard header:
-`Authorization: Bearer <JWT_TOKEN>`
+All private, profile-scoped endpoints require authorization. To access them:
+1. Register a user at `POST /v1/users` with a secure password (minimum 8 characters).
+2. Authenticate with credentials (email/password) at `POST /v1/auth/login` to obtain an `accessToken`.
+3. Pass the token as a standard Bearer header on all subsequent requests:
+   `Authorization: Bearer <JWT_TOKEN>`
+
+Password security is strictly enforced at the database level by storing salted bcrypt hashes instead of plain-text passwords.
 
 ### Pessimistic Concurrency Lock
 To avoid balance race conditions, the API secures database rows before modifying balances:
@@ -107,7 +118,8 @@ This guarantees serial execution of competing balance operations on the same ban
 
 | Method | Endpoint | Description | Auth Required | Implementation Reference |
 |---|---|---|---|---|
-| `POST` | `/v1/users` | Register a new user | No | [app/routers/users.py:L17-36](app/routers/users.py#L17-36) |
+| `POST` | `/v1/users` | Register a new user with password | No | [app/routers/users.py:L17-36](app/routers/users.py#L17-36) |
+| `POST` | `/v1/auth/login` | Authenticate credentials and get JWT token | No | [app/routers/auth.py:L18-40](app/routers/auth.py#L18-40) |
 | `GET` | `/v1/users/{userId}` | Fetch a user's details | Yes (Own Profile) | [app/routers/users.py:L39-75](app/routers/users.py#L39-75) |
 | `PATCH` | `/v1/users/{userId}` | Update profile details | Yes (Own Profile) | [app/routers/users.py:L78-116](app/routers/users.py#L78-116) |
 | `DELETE` | `/v1/users/{userId}` | Delete a user profile | Yes (Own Profile) | [app/routers/users.py:L119-154](app/routers/users.py#L119-154) |
