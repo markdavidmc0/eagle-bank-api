@@ -4,12 +4,12 @@ This module encapsulates all database interactions for Users, Bank Accounts,
 and Transactions, implementing business logic and authorization checks.
 """
 
-import bcrypt
 import hashlib
 import secrets
 import string
 from datetime import UTC, datetime
 
+import bcrypt
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session

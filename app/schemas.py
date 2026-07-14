@@ -8,7 +8,15 @@ with the OpenAPI specification.
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    PlainSerializer,
+    field_validator,
+    model_validator,
+)
 
 
 # --- Custom Types ---
@@ -115,8 +123,6 @@ class UserResponse(BaseModel):
         return data
 
 
-
-
 # --- Auth Schemas ---
 class LoginRequest(BaseModel):
     """Schema for user credentials authentication request."""
@@ -168,8 +174,6 @@ class BankAccountResponse(BaseModel):
         return round(value, 2)
 
 
-
-
 class ListBankAccountsResponse(BaseModel):
     """Schema for returning a list of bank accounts."""
 
@@ -210,8 +214,6 @@ class TransactionResponse(BaseModel):
     def round_amount(cls, value: float) -> float:
         """Round the transaction amount to exactly two decimal places."""
         return round(value, 2)
-
-
 
 
 class ListTransactionsResponse(BaseModel):
